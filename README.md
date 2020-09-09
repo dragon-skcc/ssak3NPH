@@ -29,6 +29,8 @@
 6. 고객은 본인의 예약을 취소할 수 있다
 7. 예약이 취소되면, 결제를 취소한다. (Async, 결제서비스)
 8. 결제가 취소되면, 결제 취소 내용을 청소업체에게 전달한다 (Async, 알림서비스)
+9. 청소부를 입력하면 청소부에게 등록되었다고 전달한다 (Async, 알림서비스)
+10 청소부가 카카오 알림을 요청하면 카카오 알림이 발송된다(Sync, 알림서비스)
 
 ## 비기능적 요구사항
 ### 1. 트랜잭션
@@ -136,7 +138,7 @@
 - AZure 포탈에서 리소스 그룹 > 쿠버네티스 서비스 생성 > 컨테이너 레지스트리 생성
 - 리소스 그룹 생성 : ssak3-rg
 - 컨테이너 생성( Kubernetes ) : ssak3-aks
-- 레지스트리 생성 : ssak3acr, ssak3acr.azurecr.io
+- 레지스트리 생성 : ssak3acr, ssak3acr2.azurecr.io
 - azure container repository 이름 : cleaning
 - container registry image : ssak3acr.azurecr.io/reservation, payment....
 ```
@@ -164,7 +166,7 @@ sudo apt-get install -y kubectl
 ```console
 # az login
 # az aks get-credentials --resource-group ssak3-rg --name ssak3-aks
-# az acr login --name ssak3acr --expose-token
+# az acr login --name ssak3acr2 --expose-token
 
 ```
 
@@ -356,14 +358,14 @@ docker push ssak3acr.azurecr.io/gateway
 
 ## application deploy
 ```console
-kubectl create ns ssak3
-kubectl label ns ssak3 istio-injection=enabled
-kubectl create deploy gateway --image=ssak3acr.azurecr.io/gateway -n ssak3
-kubectl create deploy reservation --image=ssak3acr.azurecr.io/reservation -n ssak3
-kubectl create deploy cleaning --image=ssak3acr.azurecr.io/cleaning -n ssak3
-kubectl create deploy dashboard --image=ssak3acr.azurecr.io/dashboard -n ssak3
-kubectl create deploy message --image=ssak3acr.azurecr.io/message -n ssak3
-kubectl create deploy payment --image=ssak3acr.azurecr.io/payment -n ssak3
+kubectl create deploy gateway --image=ssak3acr2.azurecr.io/gateway -n ssak3
+kubectl create deploy reservation --image=ssak3acr2.azurecr.io/reservation -n ssak3
+kubectl create deploy cleaning --image=ssak3acr2.azurecr.io/cleaning -n ssak3
+kubectl create deploy dashboard --image=ssak3acr2.azurecr.io/dashboard -n ssak3
+kubectl create deploy message --image=ssak3acr2.azurecr.io/message -n ssak3
+kubectl create deploy payment --image=ssak3acr2.azurecr.io/payment -n ssak3
+kubectl create deploy cleanerregistration --image=ssak3acr2.azurecr.io/cleanerregistration -n ssak3
+kubectl create deploy kakaoapi --image=ssak3acr2.azurecr.io/kakaoapi -n ssak3
 
 kubectl expose deploy gateway --port=8080 -n ssak3
 kubectl expose deploy reservation --port=8080 -n ssak3
@@ -371,6 +373,8 @@ kubectl expose deploy cleaning --port=8080 -n ssak3
 kubectl expose deploy dashboard --port=8080 -n ssak3
 kubectl expose deploy message --port=8080 -n ssak3
 kubectl expose deploy payment --port=8080 -n ssak3
+kubectl expose deploy cleanerregistration --port=8080 -n ssak3
+kubectl expose deploy kakaoapi --port=8080 -n ssak3
 
 cd ssak3/yaml
 
@@ -475,28 +479,54 @@ public interface PaymentRepository extends PagingAndSortingRepository<Payment, L
 
 - API Gateway 적용
 ```console
-# gateway service type 변경
+# gateway service type 변경(External IP 나오게함)
 $ kubectl edit service/gateway -n ssak3
 (ClusterIP -> LoadBalancer)
 
-root@ssak3-vm:~/ssak3/Payment# kubectl get service -n ssak3
-NAME          TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
-cleaning      ClusterIP      10.0.150.114   <none>         8080/TCP         11h
-dashboard     ClusterIP      10.0.69.44     <none>         8080/TCP         11h
-gateway       LoadBalancer   10.0.56.218    20.196.72.75   8080:32642/TCP   9h
-message       ClusterIP      10.0.255.90    <none>         8080/TCP         8h
-payment       ClusterIP      10.0.64.167    <none>         8080/TCP         8h
-reservation   ClusterIP      10.0.23.111    <none>         8080/TCP         11h
-```
+root@ssak3-vm:/home/skccadmin/ssak3NPH/yaml# kubectl get service -n ssak3
+NAME                  TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
+cleanerregistration   ClusterIP      10.0.126.238   <none>         8080/TCP         102m
+cleaning              ClusterIP      10.0.244.177   <none>         8080/TCP         105m
+dashboard             ClusterIP      10.0.89.35     <none>         8080/TCP         104m
+gateway               LoadBalancer   10.0.14.255    20.41.120.55   8080:30364/TCP   56m
+kakaoapi              ClusterIP      10.0.167.56    <none>         8080/TCP         102m
+message               ClusterIP      10.0.9.94      <none>         8080/TCP         104m
+payment               ClusterIP      10.0.129.175   <none>         8080/TCP         104m
+reservation           ClusterIP      10.0.23.51     <none>         8080/TCP         105m```
+
+
 - API Gateway 적용 확인
 ```console
 //예약
-http POST http://20.196.72.75:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=2000 customerName=yeon
+http POST http://20.41.120.55:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=2000 customerName=yeon
 // 청소
-http POST http://20.196.72.75:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
+http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
 // 예약취소
-http DELETE http://20.196.72.75:8080/cleaningReservations/1
+http DELETE http://20.41.120.55:8080/cleaningReservations/1
 ```
+root@ssak3-vm:/home/skccadmin/ssak3NPH/yaml# http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
+HTTP/1.1 201 Created
+content-type: application/json;charset=UTF-8
+date: Wed, 09 Sep 2020 15:54:35 GMT
+location: http://cleaning:8080/cleans/1
+server: envoy
+transfer-encoding: chunked
+x-envoy-upstream-service-time: 676
+
+{
+    "_links": {
+        "clean": {
+            "href": "http://cleaning:8080/cleans/1"
+        },
+        "self": {
+            "href": "http://cleaning:8080/cleans/1"
+        }
+    },
+    "cleanDate": "20200909",
+    "requestId": 1,
+    "status": "CleaningStarted"
+}
+
 
 - siege 접속
 ```console
