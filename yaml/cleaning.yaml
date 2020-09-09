@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: cleaning
-          image: ssak3acr.azurecr.io/cleaning:1.0
+          image: ssak3acr2.azurecr.io/cleaning:1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

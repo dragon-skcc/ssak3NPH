@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: reservation
-          image: ssak3acr.azurecr.io/reservation:1.0
+          image: ssak3acr2.azurecr.io/reservation:1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

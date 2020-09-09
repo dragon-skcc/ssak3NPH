@@ -18,5 +18,5 @@ spec:
     spec:
       containers:
       - name: ngix
-        image: dragon3ACR.azurecr.io/nginx:v1
+        image: dragon3ACR2.azurecr.io/nginx:v1
 

@@ -352,6 +352,8 @@ docker images
 docker push ssak3acr.azurecr.io/gateway
 ```
 
+![image](https://user-images.githubusercontent.com/69634194/92604257-48276880-f2eb-11ea-9cde-c596732d3b37.png)
+
 ## application deploy
 ```console
 kubectl create ns ssak3
