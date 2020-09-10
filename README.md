@@ -46,13 +46,6 @@
 
 청소예약 및 취소 시 Saga패턴(예약 Req/Resp, 취소 Pub/Sub)을 적용하여 구현되도록 설계함
 
-## AS-IS 조직 (Horizontally-Aligned)
-  ![03](https://user-images.githubusercontent.com/69634194/92385495-f3e68200-f14c-11ea-9ca0-c27cc85c986d.png)
-
-
-## TO-BE 조직 (Vertically-Aligned)
-  ![4](https://user-images.githubusercontent.com/69634194/92545590-72493e00-f28b-11ea-847d-4afdd801020e.png)
-
 ## Event Storming 결과
 * MSAEz 로 모델링한 이벤트스토밍 결과 : http://www.msaez.io/#/storming/k1eXHY4YSrSFKU3UpQTDRHUvSS23/every/f5d0809e09167fd49a1a95acfc9dd0d2/-MGcF3GTrAc5KsEkYr8b
 ![image](https://user-images.githubusercontent.com/69634194/92623947-e9b9b480-f301-11ea-95d3-3a35c4689934.png)
@@ -191,7 +184,7 @@ sudo apt install default-jdk
 2. nano .bashrc 
 3. 편집기 맨 아래로 이동
 4. (JAVA_HOME 설정 및 실행 Path 추가)
-export JAVA_HOME=‘/usr/lib/jvm/java-11-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 export PATH=$PATH:$JAVA_HOME/bin:.
 
 ctrl + x, y 입력, 종료
@@ -400,14 +393,15 @@ import org.springframework.beans.BeanUtils;
 import java.util.List;
 
 @Entity
-@Table(name="Payment_table")
-public class Payment {
+@Table(name="Cleaner_table")
+public class Cleaner {
 
     @Id
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
-    private Long requestId;
-    private Integer price;
+    private Long cleanerId;
+    private Integer cleanerName;
+    private String cleanerPNumber;
     private String status;
 
     @PostPersist
@@ -415,22 +409,27 @@ public class Payment {
 
     	System.out.println("##### Payment onPostPersist : " + getStatus());
 
-    	if("PaymentApproved".equals(getStatus())) {
+    	 if("CleanerRegistered".equals(getStatus())) {
 
-        	PayConfirmed payConfirmed = new PayConfirmed();
-            BeanUtils.copyProperties(this, payConfirmed);
-            payConfirmed.setRequestId(getRequestId());
-            payConfirmed.setStatus("PaymentCompleted");
-            payConfirmed.publishAfterCommit();
-        }
-
-        else if("PaymentCancel".equals(getStatus())) {
-        	PayCancelConfirmed payCancelConfirmed = new PayCancelConfirmed();
-            BeanUtils.copyProperties(this, payCancelConfirmed);
-            payCancelConfirmed.setRequestId(getRequestId());
-            payCancelConfirmed.setStatus("PaymentCancelCompleted");
-            payCancelConfirmed.publishAfterCommit();
-        }
+      	  CleanerRegistered cleanerRegistered = new CleanerRegistered();
+          BeanUtils.copyProperties(this, cleanerRegistered);
+		
+	  cleanerRegistered.setCleanerId(getCleanerId());
+	  cleanerRegistered.setCleanerName(getCleanerName());
+	  cleanerRegistered.setCleanerPNumber(getPNumber());
+          cleanerRegistered.setStatus("CleanerRegisteredCompleted");		
+          cleanerRegistered.publishAfterCommit();
+		
+	 else if("KakaoRegisterCompleted".equals(getStatus())){
+	    KakaoRegistered kakaoRegistered = new KakaoRegistered();		
+            BeanUtils.copyProperties(this, kakaoRegistered);
+		
+	    cleanerRegistered.setCleanerId(getCleanerId());
+	    cleanerRegistered.setCleanerName(getCleanerName());
+	    cleanerRegistered.setCleanerPNumber(getPNumber());
+            cleanerRegistered.setStatus("CleanerRegisteredCompleted");
+             kakaoRegistered.publishAfterCommit();
+	}
 
     }
 
@@ -442,22 +441,26 @@ public class Payment {
     public void setId(Long id) {
         this.id = id;
     }
-    public Long getRequestId() {
-        return requestId;
+    public Long getCleanerId() {
+        return cleanerId;
     }
 
-    public void setRequestId(Long requestId) {
-        this.requestId = requestId;
+    public void setCleanerId(Long cleanerId) {
+        this.cleanerId = cleanerId;
     }
-    public Integer getPrice() {
-        return price;
+    public String getCleanerName() {
+        return cleanerName;
     }
 
-    public void setPrice(Integer price) {
-        this.price = price;
+    public void setCleanerName(String cleanerName) {
+        this.cleanerName = cleanerName;
     }
-    public String getStatus() {
-        return status;
+    public Long getCleanerPNumber() {
+        return cleanerPNumber;
+    }
+
+    public void setCleanerPNumber(Long cleanerPNumber) {
+        this.cleanerPNumber = cleanerPNumber;
     }
 
     public void setStatus(String status) {
