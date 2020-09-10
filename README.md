@@ -441,7 +441,7 @@ public class CleanerReservation {
 $ kubectl delete -f kakao.yaml
 
 # 예약처리 (siege 에서)
-http POST http://kakao:8080/kakaoReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
+http POST http://cleaner:8080/cleanerReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
 
 # 예약처리 시 에러 내용
 HTTP/1.1 500 Internal Server Error
@@ -473,13 +473,13 @@ siege                          2/2     Running   0          3h48m
 
 
 # 처리 (siege 에서)
-http POST http://kakao:8080/kakaoReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
+http POST http://cleaner:8080/cleanerReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
 
 # 처리결과
 HTTP/1.1 201 Created
 content-type: application/json;charset=UTF-8
 date: Tue, 08 Sep 2020 15:58:28 GMT
-location: http://kakao:8080/kakaoReservations/5
+location: http://cleaner:8080/cleanerReservations/5
 server: envoy
 transfer-encoding: chunked
 x-envoy-upstream-service-time: 113
@@ -487,10 +487,10 @@ x-envoy-upstream-service-time: 113
 {
     "_links": {
         "cleanerReservation": {
-            "href": "http://kakao:8080/kakaoReservations/5"
+            "href": "http://cleaner:8080/cleanerReservations/5"
         },
         "self": {
-            "href": "http://kakao:8080/kakaoReservations/5"
+            "href": "http://cleaner:8080/cleanerReservations/5"
         }
     },
     "cleanerID": "3",
