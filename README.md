@@ -615,8 +615,9 @@ x-envoy-upstream-service-time: 439
                         "href": "http://message:8080/messages/1"
                     }
                 },
-                "requestId": 6,
-                "status": "PaymentCompleted"
+                "cleanerID": 2,
+                "cleanerName": "NPH",
+		"cleanerPNumber": "01012341234",
             },
             {
                 "_links": {
@@ -627,8 +628,9 @@ x-envoy-upstream-service-time: 439
                         "href": "http://message:8080/messages/2"
                     }
                 },
-                "requestId": 7,
-                "status": "PaymentCompleted"
+                "cleanerID": 3,
+                "cleanerName": "NPH",
+		"cleanerPNumber": "01012341234",
             }
         ]
     },
