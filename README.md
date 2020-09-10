@@ -471,7 +471,7 @@ http POST http://cleaning:8080/cleanerRegistration status=CleaningStarted reques
 @FeignClient(name="Payment", url="${api.url.payment}")
 public interface PaymentService {
 
-    @RequestMapping(method= RequestMethod.POST, path="/cleaner")
+    @RequestMapping(method= RequestMethod.POST, path="/kakao")
     public void payRequest(@RequestBody Cleaner cleaner);
 
 }
