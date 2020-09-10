@@ -747,7 +747,7 @@ x-envoy-upstream-service-time: 439
 
 ### 서킷 브레이킹 프레임워크의 선택: istio-injection + DestinationRule
 
-* istio-injection 적용 (기 적용완료)
+* istio-injection 적용
 ```
 kubectl label namespace ssak3 istio-injection=enabled
 
@@ -978,7 +978,7 @@ Shortest transaction:           0.00
 - 원인은 쿠버네티스가 성급하게 새로 올려진 서비스를 READY 상태로 인식하여 서비스 유입을 진행한 것이기 때문. 이를 막기위해 Readiness Probe 를 설정함:
 ```console
 # deployment.yaml 의 readiness probe 의 설정:
-kubectl apply -f reservation.yaml
+kubectl apply -f cleaner.yaml
 
 NAME                               READY   STATUS    RESTARTS   AGE
 pod/cleaning-bf474f568-vxl8r       2/2     Running   0          4h3m
@@ -986,7 +986,7 @@ pod/dashboard-7f7768bb5-7l8wr      2/2     Running   0          4h1m
 pod/gateway-6dfcbbc84f-rwnsh       2/2     Running   0          143m
 pod/message-69597f6864-fjs69       2/2     Running   0          92m
 pod/payment-7749f7dc7c-kfjxb       2/2     Running   0          97m
-pod/reservation-775fc6574d-nfnxx   1/1     Running   0          3m54s
+pod/cleaner-775fc6574d-nfnxx       1/1     Running   0          3m54s
 pod/siege                          2/2     Running   0          5h24m
 
 ```
@@ -1019,7 +1019,7 @@ metadata:
   name: ssak3-config
   namespace: ssak3
 data:
-  api.url.payment: http://payment:8080
+  api.url.payment: http://cleaner:8080
 ```
 
 - reservation.yaml (configmap 사용)
@@ -1027,32 +1027,32 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reservation
+  name: cleanerregistration
   namespace: ssak3
   labels:
-    app: reservation
+    app: cleanerregistration
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: reservation
+      app: cleanerregistration
   template:
     metadata:
       labels:
-        app: reservation
+        app: cleanerregistration
     spec:
       containers:
-        - name: reservation
-          image: ssak3acr.azurecr.io/reservation:1.0
+        - name: cleanerregistration
+          image: ssak3acr.azurecr.io/cleanerregistration:1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
-            - name: api.url.payment
+            - name: api.url.cleaner
               valueFrom:
                 configMapKeyRef:
                   name: ssak3-config
-                  key: api.url.payment
+                  key: api.url.cleaner
           readinessProbe:
             httpGet:
               path: '/actuator/health'
@@ -1075,40 +1075,18 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: reservation
+  name: cleanerregistration
   namespace: ssak3
   labels:
-    app: reservation
+    app: cleanerregistration
 spec:
   ports:
     - port: 8080
       targetPort: 8080
   selector:
-    app: reservation
+    app: cleanerregistration
 ```
 
-- configmap 설정 정보 확인
-```console
-kubectl describe pod/reservation-775fc6574d-kddgd -n ssak3
 
-...중략
-Containers:
-  reservation:
-    Container ID:   docker://af733ea1c805029ad0baf5c448981b3b84def8e4c99656638f2560b48b14816e
-    Image:          ssak3acr.azurecr.io/reservation:1.0
-    Image ID:       docker-pullable://ssak3acr.azurecr.io/reservation@sha256:5a9eb3e1b40911025672798628d75de0670f927fccefea29688f9627742e3f6d
-    Port:           8080/TCP
-    Host Port:      0/TCP
-    State:          Running
-      Started:      Tue, 08 Sep 2020 13:24:05 +0000
-    Ready:          True
-    Restart Count:  0
-    Liveness:       http-get http://:8080/actuator/health delay=120s timeout=2s period=5s #success=1 #failure=5
-    Readiness:      http-get http://:8080/actuator/health delay=10s timeout=2s period=5s #success=1 #failure=10
-    Environment:
-      api.url.payment:  <set to the key 'api.url.payment' of config map 'ssak3-config'>  Optional: false
-    Mounts:
-      /var/run/secrets/kubernetes.io/serviceaccount from default-token-w4fh5 (ro)
-...중략
 ```
 
