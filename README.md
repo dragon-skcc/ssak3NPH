@@ -379,17 +379,17 @@ http POST http://cleaning:8080/cleanerRegistration status=CleaningStarted reques
 ## 동기식 호출 과 Fallback 처리
 분석단계에서의 조건 중 하나로 등록->카카오 연동 간의 호출은 동기식 일관성을 유지하는 트랜잭션으로 처리하기로 하였다. 호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
 
-- 카카오 알림 서비스를 호출하기 위하여 Stub과 (FeignClient) 를 이용하여 Service 대행 인터페이스 (Proxy) 를 구현 
+- Cleaner 알림 서비스를 호출하기 위하여 Stub과 (FeignClient) 를 이용하여 Service 대행 인터페이스 (Proxy) 를 구현 
 ```java
-@FeignClient(name="Payment", url="${api.url.kakao}")
-public interface PaymentService {
+@FeignClient(name="Cleaner", url="${api.url.cleaner}")
+public interface CleanService {
 
-    @RequestMapping(method= RequestMethod.POST, path="/kakao")
+    @RequestMapping(method= RequestMethod.POST, path="/cleaner")
     public void payRequest(@RequestBody Cleaner cleaner);
 
 }
 ```
-- 카카오 알림 받은 직후(@PostPersist) 결제가 완료되도록 처리
+- Cleaner 알림 받은 직후(@PostPersist) 알림 완료되도록 처리
 ```java
 @Entity
 @Table(name="Cleaner_table")
@@ -431,13 +431,13 @@ public class CleanerReservation {
 }
 ```
 
-- 호출 시간에 따른 타임 커플링이 발생하며, 결제 시스템이 장애가 나면 주문도 못받는다는 것을 확인
+- 호출 시간에 따른 타임 커플링이 발생하며, 카카오 알림 시스템이 장애가 나면 알림을 못받는다는 것을 확인
 ```
-# 결제 서비스를 잠시 내려놓음
-$ kubectl delete -f cleaner.yaml
+# 카카오 서비스를 잠시 내려놓음
+$ kubectl delete -f kakao.yaml
 
 # 예약처리 (siege 에서)
-http POST http://reservation:8080/cleanerReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
+http POST http://reservation:8080/kakaoReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
 
 # 예약처리 시 에러 내용
 HTTP/1.1 500 Internal Server Error
@@ -455,7 +455,7 @@ x-envoy-upstream-service-time: 87
     "timestamp": "2020-09-09T15:51:34.959+0000"
 }
 
-# 결제서비스 재기동
+# Clean서비스 재기동
 $ kubectl apply -f cleaner.yaml
 
 NAME                           READY   STATUS    RESTARTS   AGE
@@ -468,7 +468,7 @@ reservation-775fc6574d-kddgd   2/2     Running   0          153m
 siege                          2/2     Running   0          3h48m
 
 
-# 예약처리 (siege 에서)
+# 처리 (siege 에서)
 http POST http://cleaner:8080/cleanerReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
 
 # 처리결과
@@ -569,15 +569,15 @@ public class PolicyHandler{
     }
 ```
 
-* 알림 시스템은 예약/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 알림 시스템이 유지보수로 인해 잠시 내려간 상태라도 예약을 받는데 문제가 없다
+* 알림 시스템은 청소부 저장과 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 알림 시스템이 유지보수로 인해 잠시 내려간 상태라도 예약을 받는데 문제가 없다
 
 ```
 # 알림 서비스를 잠시 내려놓음
 kubectl delete -f message.yaml
 
-# 예약처리 (siege 에서)
-http POST http://reservation:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=250000 customerName=chae #Success
-http POST http://reservation:8080/cleaningReservations requestDate=20200909 place=pangyo status=ReservationApply price=300000 customerName=noh #Success
+# 저장처리 (siege 에서)
+http POST http://cleaner:8080/CleanerRegistration cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
+
 
 # 알림이력 확인 (siege 에서)
 http http://message:8080/messages # 알림이력조회 불가
