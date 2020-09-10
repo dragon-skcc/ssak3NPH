@@ -49,6 +49,7 @@
 ## Event Storming 결과
 * MSAEz 로 모델링한 이벤트스토밍 결과 : 팀과제 http://www.msaez.io/#/storming/k1eXHY4YSrSFKU3UpQTDRHUvSS23/every/f5d0809e09167fd49a1a95acfc9dd0d2/-MGcF3GTrAc5KsEkYr8b
 * 개인 추가 내역
+
 ![image](https://user-images.githubusercontent.com/69634194/92681449-9cbcf900-f368-11ea-8e70-1d2de03eaa42.png)
 
 
@@ -193,13 +194,6 @@ helm repo update
 
 helm install --name my-kafka --namespace kafka incubator/kafka
 ```
-
-## Kafka delete
-```console
-helm del my-kafka  --purge
-```
-
-
 ## Istio 설치
 ```console
 kubectl create namespace istio-system
@@ -822,7 +816,6 @@ kubectl label namespace ssak3 istio-injection=disabled --overwrite
 
 # namespace/ssak3 labeled
 
-kubectl apply -f reservation.yaml
 kubectl apply -f cleaner.yaml
 ```
 - 결제서비스 배포시 resource 설정 적용되어 있음
