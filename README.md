@@ -303,6 +303,7 @@ kubectl apply -f reservation.yaml
 kubectl apply -f payment.yaml
 kubectl apply -f dashboard.yaml
 kubectl apply -f message.yaml
+kubectl apply -f cleaner.yaml
 ```
 
 ## DDD 의 적용
