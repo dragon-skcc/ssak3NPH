@@ -459,7 +459,7 @@ x-envoy-upstream-service-time: 87
     "timestamp": "2020-09-09T15:51:34.959+0000"
 }
 
-# Clean서비스 재기동
+# 카카오서비스 재기동
 $ kubectl apply -f kakao.yaml
 
 NAME                           READY   STATUS    RESTARTS   AGE
