@@ -485,14 +485,6 @@ http POST http://cleaning:8080/cleans status=CleaningStarted requestId=1 cleanDa
 ```
 
 
-## 폴리글랏 퍼시스턴스
-
-  * 각 마이크로서비스의 특성에 따라 데이터 저장소를 RDB, DocumentDB/NoSQL 등 다양하게 사용할 수 있지만, 시간적/환경적 특성상 모두 H2 메모리DB를 적용하였다.
-
-## 폴리글랏 프로그래밍
-  
-  * 각 마이크로서비스의 특성에 따라 다양한 프로그래밍 언어를 사용하여 구현할 수 있지만, 시간적/환경적 특성상 Java를 이용하여 구현하였다.
-
 ## 동기식 호출 과 Fallback 처리
 분석단계에서의 조건 중 하나로 예약->결제 간의 호출은 동기식 일관성을 유지하는 트랜잭션으로 처리하기로 하였다. 호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
 
@@ -731,6 +723,21 @@ public class PolicyHandler{
         }
     }
 
+    @StreamListener(KafkaProcessor.INPUT)
+    public void wheneverCleanerRegistered_MessageAlert(@Payload CleanerRegistered CleanerRegistered){
+
+        if(CleanerRegistered.isMe()){
+            Message message = new Message();
+
+            message.setCleanerID(CleanerRegistered.getCleanerID());
+            message.setCleanerName(CleanerRegistered.getCleanerName());
+            message.setCleanerPNumber(CleanerRegistered.getCleanerPNumber());
+
+            messageRepository.save(message);
+
+            System.out.println("##### listener MessageAlert : " + CleanerRegistered.toJson());
+        }
+    }
 
 }
 ```
@@ -911,8 +918,6 @@ Longest transaction:            2.53
 Shortest transaction:           0.04
 ```
 
-- DestinationRule 적용되어 서킷 브레이킹 동작 확인 (kiali 화면)
-  ![kiali2](https://user-images.githubusercontent.com/69634194/92505880-94b56a00-f23f-11ea-9b10-b1e43e195ca2.png)
 
 ## 오토스케일 아웃
 앞서 CB 는 시스템을 안정되게 운영할 수 있게 해줬지만 사용자의 요청을 100% 받아들여주지 못했기 때문에 이에 대한 보완책으로 자동화된 확장 기능을 적용하고자 함
@@ -1257,10 +1262,3 @@ Containers:
 ...중략
 ```
 
-
-# 개인 MSA
-1. 고객관리 (이름, 주소 등등) => 연제경 
-2. 청소부 관리 (이름, 핸드폰 번호 등등) => 노필호
-3. 청소부 리뷰관리 (리뷰, 별점평가 등등) => 성은주
-4. 고객 리뷰관리 (리뷰, 별점평가 등등) => 채민호
-5. 결제 관리 (카드, 무통장 등등) => 박유리
