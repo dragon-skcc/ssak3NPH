@@ -312,7 +312,7 @@ kubectl apply -f message.yaml
 ```
 
 ## DDD 의 적용
-* 각 서비스내에 도출된 핵심 Aggregate Root 객체를 Entity 로 선언하였다: (예시는 결제 마이크로서비스).
+* 각 서비스내에 도출된 핵심 Aggregate Root 객체를 Entity 로 선언하였다: (예시는 청소부  마이크로서비스).
   - 가능한 현업에서 사용하는 언어 (유비쿼터스 랭귀지)를 그대로 사용할 수 있지만, 일부 구현에 있어서 영문이 아닌 경우는 실행이 불가능한 경우가 있다 Maven pom.xml, Kafka의 topic id, FeignClient 의 서비스 id 등은 한글로 식별자를 사용하는 경우 오류가 발생하는 것을 확인하였다)
   - 최종적으로는 모두 영문을 사용하였으며, 이는 잠재적인 오류 발생 가능성을 차단하고 향후 확장되는 다양한 서비스들 간에 영향도를 최소화하기 위함이다.
 ```java
@@ -381,21 +381,8 @@ public class Cleaner {
     public String getCleanerName() {
         return cleanerName;
     }
-
-    public void setCleanerName(String cleanerName) {
-        this.cleanerName = cleanerName;
-    }
-    public Long getCleanerPNumber() {
-        return cleanerPNumber;
-    }
-
-    public void setCleanerPNumber(Long cleanerPNumber) {
-        this.cleanerPNumber = cleanerPNumber;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
+    .....
+   
 }
 
 ```
@@ -431,16 +418,12 @@ reservation           ClusterIP      10.0.23.51     <none>         8080/TCP     
 
 - API Gateway 적용 확인
 ```console
-//예약
-http POST http://20.41.120.55:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=2000 customerName=yeon
-// 청소
-http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
-// 예약취소
-http DELETE http://20.41.120.55:8080/cleaningReservations/1
+//청소부 등록
+http POST http://20.41.120.55:8080/cleaningRegistration cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234 
 ```
 
 
-root@ssak3-vm:/home/skccadmin/ssak3NPH/yaml# http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
+root@ssak3-vm:/home/skccadmin/ssak3NPH/yaml# http POST http://20.41.120.55:8080/cleaningRegistration cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
 HTTP/1.1 201 Created
 content-type: application/json;charset=UTF-8
 date: Wed, 09 Sep 2020 15:54:35 GMT
@@ -452,15 +435,15 @@ x-envoy-upstream-service-time: 676
 {
     "_links": {
         "clean": {
-            "href": "http://cleaning:8080/cleans/1"
+            "href": "http://cleaner:8080/cleaner/1"
         },
         "self": {
-            "href": "http://cleaning:8080/cleans/1"
+            "href": "http://cleaner:8080/cleaner/1"
         }
     },
-    "cleanDate": "20200909",
-    "requestId": 1,
-    "status": "CleaningStarted"
+    "cleanerID": "1",
+    "cleanerName": NPH,
+    "cleanPNumber": "01012341234"
 }
 
 
@@ -481,73 +464,72 @@ http http://reservation:8080/reservations/1
 http DELETE http://reservation:8080/cleaningReservations/1
 
 # 청소 결과 등록
-http POST http://cleaning:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
+http POST http://cleaning:8080/cleanerRegistration status=CleaningStarted requestId=1 cleanDate=20200909
 ```
 
 
 ## 동기식 호출 과 Fallback 처리
-분석단계에서의 조건 중 하나로 예약->결제 간의 호출은 동기식 일관성을 유지하는 트랜잭션으로 처리하기로 하였다. 호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
+분석단계에서의 조건 중 하나로 등록->카카오 연동 간의 호출은 동기식 일관성을 유지하는 트랜잭션으로 처리하기로 하였다. 호출 프로토콜은 이미 앞서 Rest Repository 에 의해 노출되어있는 REST 서비스를 FeignClient 를 이용하여 호출하도록 한다. 
 
 - 결제 서비스를 호출하기 위하여 Stub과 (FeignClient) 를 이용하여 Service 대행 인터페이스 (Proxy) 를 구현 
 ```java
 @FeignClient(name="Payment", url="${api.url.payment}")
 public interface PaymentService {
 
-    @RequestMapping(method= RequestMethod.POST, path="/payments")
-    public void payRequest(@RequestBody Payment payment);
+    @RequestMapping(method= RequestMethod.POST, path="/cleaner")
+    public void payRequest(@RequestBody Cleaner cleaner);
 
 }
 ```
-- 예약을 받은 직후(@PostPersist) 결제가 완료되도록 처리
+- 카카오 알림 받은 직후(@PostPersist) 결제가 완료되도록 처리
 ```java
 @Entity
-@Table(name="CleaningReservation_table")
-public class CleaningReservation {
+@Table(name="Cleaner_table")
+public class CleanerReservation {
 
     @Id
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
-    private String requestDate;
-    private String place;
-    private String status;
-    private Integer price;
-    private String customerName;
+    private Long CleanerID;
+    private String CleanerName;
+    private Long CleanerPNumber;
 
     @PostPersist
     public void onPostPersist(){
-        // 예약시 결제까지 트랜잭션을 통합을 위해 결제 서비스 직접 호출
-    	CleaningServiceYD.external.Payment payment = new CleaningServiceYD.external.Payment();
-        payment.setRequestId(getId());
-        payment.setPrice(getPrice());
-        payment.setStatus("PaymentApproved");
 
-        try {
-        	ReservationApplication.applicationContext.getBean(CleaningServiceYD.external.PaymentService.class)
-            	.payRequest(payment);
-        } catch(Exception e) {
-        	throw new RuntimeException("PaymentApprove failed. Check your payment Service.");
-        }
+    	System.out.println("##### Payment onPostPersist : " + getStatus());
 
-    }
+    	 if("CleanerRegistered".equals(getStatus())) {
+
+      	  CleanerRegistered cleanerRegistered = new CleanerRegistered();
+          BeanUtils.copyProperties(this, cleanerRegistered);
+		
+	  cleanerRegistered.setCleanerId(getCleanerId());
+	  cleanerRegistered.setCleanerName(getCleanerName());
+	  cleanerRegistered.setCleanerPNumber(getPNumber());
+          cleanerRegistered.setStatus("CleanerRegisteredCompleted");		
+          cleanerRegistered.publishAfterCommit();
+		
+	 else if("KakaoRegisterCompleted".equals(getStatus())){
+	    KakaoRegistered kakaoRegistered = new KakaoRegistered();		
+            BeanUtils.copyProperties(this, kakaoRegistered);
+		
+	    cleanerRegistered.setCleanerId(getCleanerId());
+	    cleanerRegistered.setCleanerName(getCleanerName());
+	    cleanerRegistered.setCleanerPNumber(getPNumber());
+            cleanerRegistered.setStatus("CleanerRegisteredCompleted");
+             kakaoRegistered.publishAfterCommit();
+	}
 }
 ```
 
 - 호출 시간에 따른 타임 커플링이 발생하며, 결제 시스템이 장애가 나면 주문도 못받는다는 것을 확인
 ```
 # 결제 서비스를 잠시 내려놓음
-$ kubectl delete -f payment.yaml
-
-NAME                           READY   STATUS    RESTARTS   AGE
-cleaning-bf474f568-vxl8r       2/2     Running   0          137m
-dashboard-7f7768bb5-7l8wr      2/2     Running   0          136m
-gateway-6dfcbbc84f-rwnsh       2/2     Running   0          37m
-message-69597f6864-mhwx7       2/2     Running   0          137m
-reservation-775fc6574d-kddgd   2/2     Running   0          144m
-siege                          2/2     Running   0          3h39m
+$ kubectl delete -f cleaner.yaml
 
 # 예약처리 (siege 에서)
-http POST http://reservation:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=250000 customerName=chae #Fail
-http POST http://reservation:8080/cleaningReservations requestDate=20200909 place=pangyo status=ReservationApply price=300000 customerName=noh #Fail
+http POST http://reservation:8080/cleanerReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
 
 # 예약처리 시 에러 내용
 HTTP/1.1 500 Internal Server Error
@@ -562,31 +544,11 @@ x-envoy-upstream-service-time: 87
     "message": "Could not commit JPA transaction; nested exception is javax.persistence.RollbackException: Error while committing the transaction",
     "path": "/cleaningReservations",
     "status": 500,
-    "timestamp": "2020-09-08T15:51:34.959+0000"
-}
-
-# 결제서비스 재기동전에 아래의 비동기식 호출 기능 점검 테스트 수행 (siege 에서)
-http DELETE http://reservation:8080/reservations/1 #Success
-
-# 결과
-root@siege:/# http DELETE http://reservation:8080/reservations/1
-HTTP/1.1 404 Not Found
-content-type: application/hal+json;charset=UTF-8
-date: Tue, 08 Sep 2020 15:52:46 GMT
-server: envoy
-transfer-encoding: chunked
-x-envoy-upstream-service-time: 16
-
-{
-    "error": "Not Found",
-    "message": "No message available",
-    "path": "/reservations/1",
-    "status": 404,
-    "timestamp": "2020-09-08T15:52:46.971+0000"
+    "timestamp": "2020-09-09T15:51:34.959+0000"
 }
 
 # 결제서비스 재기동
-$ kubectl apply -f payment.yaml
+$ kubectl apply -f cleaner.yaml
 
 NAME                           READY   STATUS    RESTARTS   AGE
 cleaning-bf474f568-vxl8r       2/2     Running   0          147m
@@ -599,32 +561,29 @@ siege                          2/2     Running   0          3h48m
 
 
 # 예약처리 (siege 에서)
-http POST http://reservation:8080/cleaningReservations requestDate=20200907 place=seoul status=ReservationApply price=250000 customerName=chae #Success
-http POST http://reservation:8080/cleaningReservations requestDate=20200909 place=pangyo status=ReservationApply price=300000 customerName=noh #Success
+http POST http://cleaner:8080/cleanerReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
 
 # 처리결과
 HTTP/1.1 201 Created
 content-type: application/json;charset=UTF-8
 date: Tue, 08 Sep 2020 15:58:28 GMT
-location: http://reservation:8080/cleaningReservations/5
+location: http://cleaner:8080/cleanerReservations/5
 server: envoy
 transfer-encoding: chunked
 x-envoy-upstream-service-time: 113
 
 {
     "_links": {
-        "cleaningReservation": {
-            "href": "http://reservation:8080/cleaningReservations/5"
+        "cleanerReservation": {
+            "href": "http://cleaner:8080/cleanerReservations/5"
         },
         "self": {
-            "href": "http://reservation:8080/cleaningReservations/5"
+            "href": "http://cleaner:8080/cleanerReservations/5"
         }
     },
-    "customerName": "noh",
-    "place": "pangyo",
-    "price": 300000,
-    "requestDate": "20200909",
-    "status": "ReservationApply"
+    "cleanerID": "3",
+    "cleanerName": "NPH",
+    "cleanerPNumber": 01012341234"
 }
 ```
 - 과도한 요청시에 서비스 장애가 도미노 처럼 벌어질 수 있다 (서킷브레이커, 폴백 처리는 운영단계에서 설명)
@@ -633,46 +592,51 @@ x-envoy-upstream-service-time: 113
 - 비동기식 호출 / 시간적 디커플링 / 장애격리 / 최종 (Eventual) 일관성 테스트
 결제가 이루어진 후에 알림 처리는 동기식이 아니라 비 동기식으로 처리하여 알림 시스템의 처리를 위하여 예약이 블로킹 되지 않아도록 처리한다.
  
-- 이를 위하여 예약관리, 결제관리에 기록을 남긴 후에 곧바로 완료되었다는 도메인 이벤트를 카프카로 송출한다(Publish)
+- 이를 위하여 예약관리, 결제관리, 청소부 등록 카카오 알림에 기록을 남긴 후에 곧바로 완료되었다는 도메인 이벤트를 카프카로 송출한다(Publish)
 ```java
 @Entity
-@Table(name="Payment_table")
-public class Payment {
+@Table(name="Cleaner_table")
+public class Cleaner {
 
     @Id
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
-    private Long requestId;
-    private Integer price;
-    private String status;
+     private Long CleanerID;
+    private String CleanerName;
+    private Long CleanerPNumber;
 
     @PostPersist
     public void onPostPersist(){
 
     	System.out.println("##### Payment onPostPersist : " + getStatus());
 
-    	if("PaymentApproved".equals(getStatus())) {
+    	 if("CleanerRegistered".equals(getStatus())) {
 
-        	PayConfirmed payConfirmed = new PayConfirmed();
-            BeanUtils.copyProperties(this, payConfirmed);
-            payConfirmed.setRequestId(getRequestId());
-            payConfirmed.setStatus("PaymentCompleted");
-            payConfirmed.publishAfterCommit();
-        }
-
-        else if("PaymentCancel".equals(getStatus())) {
-        	PayCancelConfirmed payCancelConfirmed = new PayCancelConfirmed();
-            BeanUtils.copyProperties(this, payCancelConfirmed);
-            payCancelConfirmed.setRequestId(getRequestId());
-            payCancelConfirmed.setStatus("PaymentCancelCompleted");
-            payCancelConfirmed.publishAfterCommit();
-        }
+      	  CleanerRegistered cleanerRegistered = new CleanerRegistered();
+          BeanUtils.copyProperties(this, cleanerRegistered);
+		
+	  cleanerRegistered.setCleanerId(getCleanerId());
+	  cleanerRegistered.setCleanerName(getCleanerName());
+	  cleanerRegistered.setCleanerPNumber(getPNumber());
+          cleanerRegistered.setStatus("CleanerRegisteredCompleted");		
+          cleanerRegistered.publishAfterCommit();
+		
+	 else if("KakaoRegisterCompleted".equals(getStatus())){
+	    KakaoRegistered kakaoRegistered = new KakaoRegistered();		
+            BeanUtils.copyProperties(this, kakaoRegistered);
+		
+	    cleanerRegistered.setCleanerId(getCleanerId());
+	    cleanerRegistered.setCleanerName(getCleanerName());
+	    cleanerRegistered.setCleanerPNumber(getPNumber());
+            cleanerRegistered.setStatus("CleanerRegisteredCompleted");
+             kakaoRegistered.publishAfterCommit();
+	}
 
     }
     ...
 }
 ```
-- 알림 서비스에서는 결제승인, 청소완료, 결제취소 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다
+- 알림 서비스에서는 결제승인, 청소완료, 결제취소, 청소부 등록 이벤트에 대해서 이를 수신하여 자신의 정책을 처리하도록 PolicyHandler 를 구현한다
 ```java
 @Service
 public class PolicyHandler{
@@ -680,50 +644,7 @@ public class PolicyHandler{
 	@Autowired
     private MessageRepository messageRepository;
 
-    @StreamListener(KafkaProcessor.INPUT)
-    public void wheneverPayConfirmed_MessageAlert(@Payload PayConfirmed payConfirmed){
-
-        if(payConfirmed.isMe()){
-        	Message message = new Message();
-
-        	message.setRequestId(payConfirmed.getRequestId());
-        	message.setStatus(payConfirmed.getStatus());
-
-        	messageRepository.save(message);
-
-            System.out.println("##### listener MessageAlert : " + payConfirmed.toJson());
-        }
-    }
-    @StreamListener(KafkaProcessor.INPUT)
-    public void wheneverCleaningConfirmed_MessageAlert(@Payload CleaningConfirmed cleaningConfirmed){
-
-        if(cleaningConfirmed.isMe()){
-        	Message message = new Message();
-
-        	message.setRequestId(cleaningConfirmed.getRequestId());
-        	message.setStatus(cleaningConfirmed.getStatus());
-
-        	messageRepository.save(message);
-
-            System.out.println("##### listener MessageAlert : " + cleaningConfirmed.toJson());
-        }
-    }
-    @StreamListener(KafkaProcessor.INPUT)
-    public void wheneverPayCancelConfirmed_MessageAlert(@Payload PayCancelConfirmed payCancelConfirmed){
-
-        if(payCancelConfirmed.isMe()){
-        	Message message = new Message();
-
-        	message.setRequestId(payCancelConfirmed.getRequestId());
-        	message.setStatus(payCancelConfirmed.getStatus());
-
-        	messageRepository.save(message);
-
-            System.out.println("##### listener MessageAlert : " + payCancelConfirmed.toJson());
-        }
-    }
-
-    @StreamListener(KafkaProcessor.INPUT)
+      @StreamListener(KafkaProcessor.INPUT)
     public void wheneverCleanerRegistered_MessageAlert(@Payload CleanerRegistered CleanerRegistered){
 
         if(CleanerRegistered.isMe()){
@@ -738,30 +659,8 @@ public class PolicyHandler{
             System.out.println("##### listener MessageAlert : " + CleanerRegistered.toJson());
         }
     }
-
-}
 ```
-- 실제 구현을 하자면, 카톡 등으로 알림을 처리함
-```
-@Service
-public class PolicyHandler{
 
-    @Autowired
-    private MessageRepository messageRepository;
-
-    @StreamListener(KafkaProcessor.INPUT)
-        public void wheneverPayConfirmed_MessageAlert(@Payload PayConfirmed payConfirmed){
-    
-            if(payConfirmed.isMe()){
-            	Message message = new Message();
-    
-            	message.setRequestId(payConfirmed.getRequestId());
-            	message.setStatus(payConfirmed.getStatus());
-    
-            	messageRepository.save(message);
-            }
-        }
- ```
 * 알림 시스템은 예약/결제와 완전히 분리되어있으며, 이벤트 수신에 따라 처리되기 때문에, 알림 시스템이 유지보수로 인해 잠시 내려간 상태라도 예약을 받는데 문제가 없다
 
 ```
@@ -841,6 +740,7 @@ x-envoy-upstream-service-time: 439
 
 ## CI/CD 설정
   * 각 구현체들은 github의 각각의 source repository 에 구성
+  * 별도 VM에 Docker 설치하여 Docker build 및 Docker Push를 Azure로 함
   * Image repository는 Azure 사용
 
 ## 동기식 호출 / 서킷 브레이킹 / 장애격리
@@ -853,24 +753,21 @@ kubectl label namespace ssak3 istio-injection=enabled
 
 # error: 'istio-injection' already has a value (enabled), and --overwrite is false
 ```
-* 예약, 결제 서비스 모두 아무런 변경 없음
+* 예약, 결제 서비스,  모두 아무런 변경 없음
 
 * 부하테스터 siege 툴을 통한 서킷 브레이커 동작 확인:
 - 동시사용자 100명
 - 60초 동안 실시
 ```console
-siege -v -c100 -t60S -r10 --content-type "application/json" 'http://reservation:8080/cleaningReservations POST {"customerName": "noh","price": 300000,"requestDate": "20200909","status": "ReservationApply"}'
+siege -v -c100 -t60S -r10 --content-type "application/json" 'http://cleaner:8080/cleanerReservations POST {"cleanerID": "5","cleanerName": NPH,"cleanPNumber": "01012341234"}'
 
-HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.12 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     0.14 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.11 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.21 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.11 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     1.21 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 201     0.12 secs:     341 bytes ==> POST http://reservation:8080/cleaningReservations
+HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     1.12 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     0.14 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     1.11 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     1.21 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 201     1.20 secs:     341 bytes ==> POST http://cleaner:8080/cleanerReservations
 
 Lifting the server siege...
 Transactions:                   4719 hits
@@ -889,18 +786,16 @@ Shortest transaction:           0.05
 * 서킷 브레이킹을 위한 DestinationRule 적용
 ```
 cd ssak3/yaml
-kubectl apply -f payment_dr.yaml
+kubectl apply -f cleaner_dr.yaml
 
-# destinationrule.networking.istio.io/dr-payment created
+# destinationrule.networking.istio.io/dr-cleaner created
 
-HTTP/1.1 500     0.68 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.70 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.71 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.72 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.92 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.68 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.82 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
-HTTP/1.1 500     0.71 secs:     262 bytes ==> POST http://reservation:8080/cleaningReservations
+HTTP/1.1 500     0.68 secs:     262 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 500     0.70 secs:     262 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 500     0.71 secs:     262 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 500     0.72 secs:     262 bytes ==> POST http://cleaner:8080/cleanerReservations
+HTTP/1.1 500     0.92 secs:     262 bytes ==> POST http://cleaner:8080/cleanerReservations
+
 siege aborted due to excessive socket failure; you
 can change the failure threshold in $HOME/.siegerc
 
@@ -928,7 +823,7 @@ kubectl label namespace ssak3 istio-injection=disabled --overwrite
 # namespace/ssak3 labeled
 
 kubectl apply -f reservation.yaml
-kubectl apply -f payment.yaml
+kubectl apply -f cleaner.yaml
 ```
 - 결제서비스 배포시 resource 설정 적용되어 있음
 ```
@@ -944,69 +839,37 @@ kubectl apply -f payment.yaml
 
 - 결제서비스에 대한 replica 를 동적으로 늘려주도록 HPA 를 설정한다. 설정은 CPU 사용량이 15프로를 넘어서면 replica 를 3개까지 늘려준다
 ```console
-kubectl autoscale deploy payment -n ssak3 --min=1 --max=3 --cpu-percent=15
+kubectl autoscale deploy cleanerregistration -n ssak3 --min=1 --max=3 --cpu-percent=15
 
 # horizontalpodautoscaler.autoscaling/payment autoscaled
 
-root@ssak3-vm:~/ssak3/yaml# kubectl get all -n ssak3
-NAME                               READY   STATUS    RESTARTS   AGE
-pod/cleaning-bf474f568-vxl8r       2/2     Running   0          3h5m
-pod/dashboard-7f7768bb5-7l8wr      2/2     Running   0          3h3m
-pod/gateway-6dfcbbc84f-rwnsh       2/2     Running   0          85m
-pod/message-69597f6864-fjs69       2/2     Running   0          34m
-pod/payment-7749f7dc7c-kfjxb       2/2     Running   0          39m
-pod/reservation-775fc6574d-kddgd   2/2     Running   0          3h12m
-pod/siege                          2/2     Running   0          4h27m
+NAME                                                      REFERENCE                        TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/cleanerregistration   Deployment/cleanerregistration   3%/15%   1         3         0          4s
 
-NAME                  TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
-service/cleaning      ClusterIP      10.0.150.114   <none>         8080/TCP         3h5m
-service/dashboard     ClusterIP      10.0.69.44     <none>         8080/TCP         3h3m
-service/gateway       LoadBalancer   10.0.56.218    20.196.72.75   8080:32642/TCP   85m
-service/message       ClusterIP      10.0.255.90    <none>         8080/TCP         34m
-service/payment       ClusterIP      10.0.64.167    <none>         8080/TCP         39m
-service/reservation   ClusterIP      10.0.23.111    <none>         8080/TCP         3h12m
 
-NAME                          READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/cleaning      1/1     1            1           3h5m
-deployment.apps/dashboard     1/1     1            1           3h3m
-deployment.apps/gateway       1/1     1            1           85m
-deployment.apps/message       1/1     1            1           34m
-deployment.apps/payment       1/1     1            1           39m
-deployment.apps/reservation   1/1     1            1           3h12m
-
-NAME                                     DESIRED   CURRENT   READY   AGE
-replicaset.apps/cleaning-bf474f568       1         1         1       3h5m
-replicaset.apps/dashboard-7f7768bb5      1         1         1       3h3m
-replicaset.apps/gateway-6dfcbbc84f       1         1         1       85m
-replicaset.apps/message-69597f6864       1         1         1       34m
-replicaset.apps/payment-7749f7dc7c       1         1         1       39m
-replicaset.apps/reservation-775fc6574d   1         1         1       3h12m
-
-NAME                                          REFERENCE            TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
-horizontalpodautoscaler.autoscaling/payment   Deployment/payment   3%/15%    1         3         1          55s
 ```
 
 - CB 에서 했던 방식대로 워크로드를 3분 동안 걸어준다.
 ```console
-siege -v -c100 -t180S -r10 --content-type "application/json" 'http://reservation:8080/cleaningReservations POST {"customerName": "noh","price": 300000,"requestDate": "20200909","status": "ReservationApply"}'
+siege -v -c100 -t180S -r10 --content-type "application/json" 'http://cleaner:8080/cleanerReservations POST {"cleanerID": "3","cleanerName": NPH,"cleanerPNumber": "01012341234"}'
 ```
 
 - 오토스케일이 어떻게 되고 있는지 모니터링을 걸어둔다
 ```console
-kubectl get deploy payment -n ssak3 -w 
+kubectl get deploy cleanerregistration -n ssak3 -w 
 
-NAME      READY   UP-TO-DATE   AVAILABLE   AGE
-payment   1/1     1            1           43m
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+cleanerregistration   1/1     1            1           13h
 
 # siege 부하 적용 후
-root@ssak3-vm:/# kubectl get deploy payment -n ssak3 -w
-NAME      READY   UP-TO-DATE   AVAILABLE   AGE
-payment   1/1     1            1           43m
-payment   1/3     1            1           44m
-payment   1/3     1            1           44m
-payment   1/3     3            1           44m
-payment   2/3     3            2           46m
-payment   3/3     3            3           46m
+root@ssak3-vm:/# kubectl get deploy cleanerregistration -n ssak3 -w
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+cleanerregistration   1/1     1            1           43m
+cleanerregistration   1/3     1            1           44m
+cleanerregistration   1/3     1            1           44m
+cleanerregistration   1/3     3            1           44m
+cleanerregistration   2/3     3            2           46m
+cleanerregistration   3/3     3            3           46m
 ```
 - siege 의 로그를 보아도 전체적인 성공률이 높아진 것을 확인 할 수 있다.
 ```console
@@ -1028,30 +891,30 @@ Shortest transaction:           0.01
 ## 무정지 재배포 (readiness)
 - 먼저 무정지 재배포가 100% 되는 것인지 확인하기 위해서 Autoscaler 이나 CB 설정을 제거함 (위의 시나리오에서 제거되었음)
 ```console
-kubectl delete horizontalpodautoscaler.autoscaling/payment -n ssak3
+kubectl delete horizontalpodautoscaler.autoscaling/cleanerregistration -n ssak3
 ```
 - yaml 설정 참고
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reservation
+  name: cleaner
   namespace: ssak3
   labels:
-    app: reservation
+    app: cleaner
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: reservation
+      app: cleaner
   template:
     metadata:
       labels:
-        app: reservation
+        app: cleaner
     spec:
       containers:
-        - name: reservation
-          image: ssak3acr.azurecr.io/reservation:1.0
+        - name: cleaner
+          image: ssak3acr.azurecr.io/cleanerregistration:1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -1080,30 +943,17 @@ spec:
 
 ---
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: reservation
-  namespace: ssak3
-  labels:
-    app: reservation
-spec:
-  ports:
-    - port: 8080
-      targetPort: 8080
-  selector:
-    app: reservation
 ```
 
 - siege 로 배포작업 직전에 워크로드를 모니터링 함.
 ```console
-siege -v -c1 -t120S -r10 --content-type "application/json" 'http://reservation:8080/cleaningReservations POST {"customerName": "noh","price": 300000,"requestDate": "20200909","status": "ReservationApply"}'
+siege -v -c1 -t120S -r10 --content-type "application/json" 'http://cleaner:8080/cleanerReservations POST {"cleanerID": "5","cleanerName": NPH,"cleanerPNumber": "01012341234"}'
 ```
 
 - 새버전으로의 배포 시작
 ```
 # 컨테이너 이미지 Update (readness, liveness 미설정 상태)
-kubectl apply -f reservation_na.yaml
+kubectl apply -f cleaner_na.yaml
 ```
 
 - siege 의 화면으로 넘어가서 Availability 가 100% 미만으로 떨어졌는지 확인
