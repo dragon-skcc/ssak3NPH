@@ -49,7 +49,7 @@
 ## Event Storming 결과
 * MSAEz 로 모델링한 이벤트스토밍 결과 : 팀과제 http://www.msaez.io/#/storming/k1eXHY4YSrSFKU3UpQTDRHUvSS23/every/f5d0809e09167fd49a1a95acfc9dd0d2/-MGcF3GTrAc5KsEkYr8b
 * 개인 추가 내역
-![image](https://user-images.githubusercontent.com/69634194/92623947-e9b9b480-f301-11ea-95d3-3a35c4689934.png)
+![image](https://user-images.githubusercontent.com/69634194/92681449-9cbcf900-f368-11ea-8e70-1d2de03eaa42.png)
 
 
 
