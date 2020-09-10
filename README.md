@@ -1045,7 +1045,7 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: ssak3-config
-                  key: api.url.cleaner
+                  key: api.url.kakao
           readinessProbe:
             httpGet:
               path: '/actuator/health'
