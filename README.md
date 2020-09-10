@@ -55,6 +55,7 @@
 
 ## Event Storming 결과
 * MSAEz 로 모델링한 이벤트스토밍 결과 : http://www.msaez.io/#/storming/k1eXHY4YSrSFKU3UpQTDRHUvSS23/every/f5d0809e09167fd49a1a95acfc9dd0d2/-MGcF3GTrAc5KsEkYr8b
+![image](https://user-images.githubusercontent.com/69634194/92623947-e9b9b480-f301-11ea-95d3-3a35c4689934.png)
 
 ### 이벤트 도출
   ![06](https://user-images.githubusercontent.com/69634194/92385630-327c3c80-f14d-11ea-8dfe-67e160446c67.png)
@@ -504,6 +505,8 @@ http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cle
 // 예약취소
 http DELETE http://20.41.120.55:8080/cleaningReservations/1
 ```
+
+
 root@ssak3-vm:/home/skccadmin/ssak3NPH/yaml# http POST http://20.41.120.55:8080/cleans status=CleaningStarted requestId=1 cleanDate=20200909
 HTTP/1.1 201 Created
 content-type: application/json;charset=UTF-8
