@@ -381,11 +381,11 @@ http POST http://cleaning:8080/cleanerRegistration status=CleaningStarted reques
 
 - Cleaner 알림 서비스를 호출하기 위하여 Stub과 (FeignClient) 를 이용하여 Service 대행 인터페이스 (Proxy) 를 구현 
 ```java
-@FeignClient(name="Cleaner", url="${api.url.cleaner}")
-public interface CleanService {
+@FeignClient(name="Kakao", url="${api.url.kakao}")
+public interface kakaoService {
 
-    @RequestMapping(method= RequestMethod.POST, path="/cleaner")
-    public void payRequest(@RequestBody Cleaner cleaner);
+    @RequestMapping(method= RequestMethod.POST, path="/kakao")
+    public void payRequest(@RequestBody Kakao kakao);
 
 }
 ```
@@ -419,14 +419,18 @@ public class CleanerReservation {
           cleanerRegistered.publishAfterCommit();
 		
 	 else if("KakaoRegisterCompleted".equals(getStatus())){
-	    KakaoRegistered kakaoRegistered = new KakaoRegistered();		
-            BeanUtils.copyProperties(this, kakaoRegistered);
-		
-	    cleanerRegistered.setCleanerId(getCleanerId());
-	    cleanerRegistered.setCleanerName(getCleanerName());
-	    cleanerRegistered.setCleanerPNumber(getPNumber());
-            cleanerRegistered.setStatus("CleanerRegisteredCompleted");
-             kakaoRegistered.publishAfterCommit();
+	 
+	   CleaningServiceYD.external.Kakao kakao = new CleaningServiceYD.external.Kakao();
+           kakao.setCleanerId(getCleanerId());
+           kakao.setCleanerName(getCleanerName());
+           kakao.setStatus("PaymentApproved");
+
+           try {
+        	ReservationApplication.applicationContext.getBean(CleaningServiceYD.external.KakaoService.class)
+            	.kakaoNoti(kakao);
+           } catch(Exception e) {
+        	throw new RuntimeException("Kakao noti failed. Check your kakao noti Service.");
+           }	   
 	}
 }
 ```
@@ -437,7 +441,7 @@ public class CleanerReservation {
 $ kubectl delete -f kakao.yaml
 
 # 예약처리 (siege 에서)
-http POST http://reservation:8080/kakaoReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
+http POST http://kakao:8080/kakaoReservations cleanerID=1 cleanerName=NPH cleanerPNumber=01012341234
 
 # 예약처리 시 에러 내용
 HTTP/1.1 500 Internal Server Error
@@ -456,10 +460,10 @@ x-envoy-upstream-service-time: 87
 }
 
 # Clean서비스 재기동
-$ kubectl apply -f cleaner.yaml
+$ kubectl apply -f kakao.yaml
 
 NAME                           READY   STATUS    RESTARTS   AGE
-cleaning-bf474f568-vxl8r       2/2     Running   0          147m
+kakao-bf474f568-vxl8r       2/2     Running   0          147m
 dashboard-7f7768bb5-7l8wr      2/2     Running   0          145m
 gateway-6dfcbbc84f-rwnsh       2/2     Running   0          47m
 message-69597f6864-mhwx7       2/2     Running   0          147m
@@ -469,13 +473,13 @@ siege                          2/2     Running   0          3h48m
 
 
 # 처리 (siege 에서)
-http POST http://cleaner:8080/cleanerReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
+http POST http://kakao:8080/kakaoReservations cleanerID=3 cleanerName=NPH cleanerPNumber=01012341234
 
 # 처리결과
 HTTP/1.1 201 Created
 content-type: application/json;charset=UTF-8
 date: Tue, 08 Sep 2020 15:58:28 GMT
-location: http://cleaner:8080/cleanerReservations/5
+location: http://kakao:8080/kakaoReservations/5
 server: envoy
 transfer-encoding: chunked
 x-envoy-upstream-service-time: 113
@@ -483,10 +487,10 @@ x-envoy-upstream-service-time: 113
 {
     "_links": {
         "cleanerReservation": {
-            "href": "http://cleaner:8080/cleanerReservations/5"
+            "href": "http://kakao:8080/kakaoReservations/5"
         },
         "self": {
-            "href": "http://cleaner:8080/cleanerReservations/5"
+            "href": "http://kakao:8080/kakaoReservations/5"
         }
     },
     "cleanerID": "3",
@@ -530,17 +534,19 @@ public class Cleaner {
           cleanerRegistered.publishAfterCommit();
 		
 	 else if("KakaoRegisterCompleted".equals(getStatus())){
-	    KakaoRegistered kakaoRegistered = new KakaoRegistered();		
-            BeanUtils.copyProperties(this, kakaoRegistered);
-		
-	    cleanerRegistered.setCleanerId(getCleanerId());
-	    cleanerRegistered.setCleanerName(getCleanerName());
-	    cleanerRegistered.setCleanerPNumber(getPNumber());
-            cleanerRegistered.setStatus("CleanerRegisteredCompleted");
-             kakaoRegistered.publishAfterCommit();
-	}
+	 
+	   CleaningServiceYD.external.Kakao kakao = new CleaningServiceYD.external.Kakao();
+           kakao.setCleanerId(getCleanerId());
+           kakao.setCleanerName(getCleanerName());
+           kakao.setStatus("PaymentApproved");
 
-    }
+           try {
+        	ReservationApplication.applicationContext.getBean(CleaningServiceYD.external.KakaoService.class)
+            	.kakaoNoti(kakao);
+           } catch(Exception e) {
+        	throw new RuntimeException("Kakao noti failed. Check your kakao noti Service.");
+           }	   
+	}
     ...
 }
 ```
